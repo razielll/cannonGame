@@ -20,6 +20,9 @@ class cannonCanvas {
 			this.dy = dy;
 		};
 		this.animID;
+		this.isShooting = false;
+		this.dx = null;
+		this.dy = null;
 	}
 
 	createEL(el = 'div') {
@@ -27,7 +30,8 @@ class cannonCanvas {
 		let element = document.createElement(el);
 		element.setAttribute(`class`, `container-${this.key}`);
 		element.addEventListener('mousedown', this.handleClick.bind(this));
-		element.addEventListener('mousemove', this.startShooting.bind(this));
+		element.addEventListener('mousemove', this.shoot.bind(this));
+		element.addEventListener('mouseup', this.stopShooting.bind(this));
 		element.innerHTML += `<canvas class="can-${this.key}" />`;
 		document.body.appendChild(element);
 		this.drawCanvas();
@@ -35,12 +39,19 @@ class cannonCanvas {
 		return 'Working with unique key';
 	}
 
+	stopShooting() {
+		return (this.isShooting = false);
+	}
+
 	startShooting(ev) {
-		if (ev.which !== 1) return false;
-		if (ev.type === 'mousemove') {
-			console.log('creating shot');
-			return this.createShot(ev);
-		}
+		if (ev.which !== 1 || !this.cannon) return;
+		this.isShooting = true;
+		return this.setShot(ev);
+	}
+
+	shoot(ev) {
+		if (ev.which !== 1) return;
+		return this.setShot(ev);
 	}
 
 	handleClick(ev) {
@@ -61,12 +72,11 @@ class cannonCanvas {
 		} else if (this.cannon) {
 			let isCollision = this.isIntersect({ x, y }, this.cannon);
 			if (isCollision) {
-				console.log('cannon removed');
 				this.cannon = null;
 				return this.drawCanvas();
 			}
 		}
-		this.createShot(ev);
+		this.startShooting(ev);
 		return (this.animID = requestAnimationFrame(this.animate));
 	}
 
@@ -101,19 +111,23 @@ class cannonCanvas {
 		ctx.fill();
 	}
 
-	createShot(ev) {
+	setShot(ev) {
 		if (!this.cannon) return false;
-		let diffX = ev.clientX - this.cannon.x;
-		let diffY = ev.clientY - this.cannon.y;
-		const magnitude = Math.sqrt(diffX * diffX + diffY * diffY);
-		let dx = diffX / magnitude;
-		let dy = diffY / magnitude;
-		this.shots.push(new this.shot(this.cannon.x, this.cannon.y, dx, dy));
+		let mouseX = ev.clientX - this.cannon.x;
+		let mouseY = ev.clientY - this.cannon.y;
+		const magnitude = Math.sqrt(mouseX * mouseX + mouseY * mouseY);
+		this.dx = mouseX / magnitude;
+		this.dy = mouseY / magnitude;
 	}
 
 	animate() {
-		if (this.animID) cancelAnimationFrame(this.animID);
-		if (this.shots.length === 0) return;
+		// console.log('in anim'); // check for memory leak in animate loop, doesn't run when no balls on screen
+		cancelAnimationFrame(this.animID);
+
+		if (this.isShooting) {
+			this.shots.push(new this.shot(this.cannon.x, this.cannon.y, this.dx, this.dy));
+		}
+
 		let w = this.domRect.right;
 		let h = this.domRect.height + this.domRect.top;
 
@@ -128,7 +142,7 @@ class cannonCanvas {
 		for (var i = 0; i < this.shots.length; i++) {
 			this.drawShot(this.shots[i].x, this.shots[i].y);
 		}
-		return (this.animID = requestAnimationFrame(this.animate));
+		if (this.shots.length > 0) return (this.animID = requestAnimationFrame(this.animate));
 	}
 	// utility function
 	unique() {
